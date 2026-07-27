@@ -9,6 +9,7 @@ import { GameMiniCard } from '../../src/components/GameMiniCard'
 import { formatVenueLabel, getFeaturedWeekendGames, getFeedGames, getFreeGames, getGameImageColor, getNearbyGames } from '../../src/lib/games'
 import { loadGames } from '../../src/lib/gamesSync'
 import { effectiveSpotsLeft, toggleSaved, useIsJoined, useIsSaved, useJoinedCount, useRemoteGames } from '../../src/lib/store'
+import { useUserLocation, type Coords } from '../../src/lib/useUserLocation'
 import { colors } from '../../src/theme'
 import type { Game, GameFilters, GameStatus, TimeWindow } from '../../src/types/game'
 
@@ -119,10 +120,10 @@ function CuratedRow({ title, games }: { title: string; games: Game[] }) {
   )
 }
 
-function CuratedSections({ games }: { games: Game[] }) {
+function CuratedSections({ games, location }: { games: Game[]; location: Coords | null }) {
   return (
     <View style={{ paddingTop: 4 }}>
-      <CuratedRow title="NEAR YOU" games={getNearbyGames(games)} />
+      <CuratedRow title="NEAR YOU" games={getNearbyGames(games, location ?? undefined)} />
       <CuratedRow title="FEATURED THIS WEEKEND" games={getFeaturedWeekendGames(games)} />
       <CuratedRow title="FREE GAMES" games={getFreeGames(games)} />
     </View>
@@ -151,6 +152,7 @@ export default function HomeScreen() {
   const activeCount = countActiveFilters(filters)
 
   const remote = useRemoteGames()
+  const location = useUserLocation()
   const games = React.useMemo(
     () => getFeedGames(remote, toGameFilters(activeTab, filters)),
     [remote, activeTab, filters],
@@ -219,7 +221,7 @@ export default function HomeScreen() {
 
       {/* Feed (curated rows on the default Today view, then the filtered list) */}
       <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 24 }} showsVerticalScrollIndicator={false} refreshControl={<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={colors.accent} />}>
-        {activeTab === 'today' && activeCount === 0 && <CuratedSections games={remote} />}
+        {activeTab === 'today' && activeCount === 0 && <CuratedSections games={remote} location={location} />}
 
         <Text style={{ fontSize: 11, color: colors.textMuted, paddingHorizontal: 16, letterSpacing: 0.8, marginBottom: 8 }}>{tab.section}</Text>
 
