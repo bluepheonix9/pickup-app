@@ -3,6 +3,7 @@ import React from 'react'
 import { ActivityIndicator, View } from 'react-native'
 import { AuthProvider, useAuth } from '../src/lib/auth'
 import { loadGames } from '../src/lib/gamesSync'
+import { subscribeToMembers } from '../src/lib/membersSync'
 import { fetchProfile } from '../src/lib/profileSync'
 import { clearMembers, clearProfile, loadMembers, loadStateFromStorage, saveProfile, setCurrentUser } from '../src/lib/store'
 import { colors } from '../src/theme'
@@ -32,8 +33,14 @@ function RootNavigator() {
     })
     void loadGames()
     void loadMembers()
+    // Keep joined counts / spots-left live: refetch memberships whenever anyone
+    // joins or leaves any game.
+    const unsubscribeMembers = subscribeToMembers(() => {
+      void loadMembers()
+    })
     return () => {
       cancelled = true
+      unsubscribeMembers()
     }
   }, [userId])
 
