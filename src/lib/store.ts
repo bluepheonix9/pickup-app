@@ -2,7 +2,6 @@ import AsyncStorage from '@react-native-async-storage/async-storage'
 import { useSyncExternalStore } from 'react'
 import { deleteMembership, fetchAllMembers, insertMembership } from './membersSync'
 import type { Game } from '../types/game'
-import type { Message } from '../types/message'
 import type { Profile } from '../types/profile'
 
 // Lightweight app store for the demo core loop — saves and joins that stay in
@@ -25,8 +24,6 @@ type StoreState = {
   remoteGames: Game[]
   // Auth user id of the signed-in user, used to tell which games are "mine".
   currentUserId: string | null
-  // Per-game chat threads, keyed by game id. In-memory only for now.
-  gameChats: Record<string, Message[]>
 }
 
 let state: StoreState = {
@@ -36,7 +33,6 @@ let state: StoreState = {
   profile: null,
   remoteGames: [],
   currentUserId: null,
-  gameChats: {},
 }
 
 const listeners = new Set<() => void>()
@@ -163,17 +159,6 @@ export function useProfile(): Profile | null {
   )
 }
 
-// Stable empty reference so an unread thread doesn't churn getSnapshot.
-const EMPTY_MESSAGES: Message[] = []
-
-export function useGameMessages(gameId: string): Message[] {
-  return useSyncExternalStore(
-    subscribe,
-    () => state.gameChats[gameId] ?? EMPTY_MESSAGES,
-    () => state.gameChats[gameId] ?? EMPTY_MESSAGES,
-  )
-}
-
 // ---- Actions ----
 
 // Saves and joins write to Supabase `game_members`. Each action updates local
@@ -277,16 +262,14 @@ export function upsertLocalGame(game: Game) {
 }
 
 // Remove a cancelled game and scrub any references so it stops resolving.
-// (The game_members rows are cleaned up server-side by the games FK cascade.)
+// (game_members and messages rows are cleaned up server-side by the FK cascade.)
 export function removeLocalGame(id: string) {
-  const { [id]: _removed, ...remainingChats } = state.gameChats
   const { [id]: _count, ...remainingCounts } = state.joinedCountByGame
   setState({
     remoteGames: state.remoteGames.filter((game) => game.id !== id),
     savedIds: state.savedIds.filter((savedId) => savedId !== id),
     joinedIds: state.joinedIds.filter((joinedId) => joinedId !== id),
     joinedCountByGame: remainingCounts,
-    gameChats: remainingChats,
   })
 }
 
@@ -310,24 +293,6 @@ export function saveProfile(patch: Partial<Profile>) {
 
 export function clearProfile() {
   setState({ profile: null })
-}
-
-// Append a message to a game's thread, stamped with the current profile
-// (falling back to a guest identity when no profile exists yet).
-export function sendGameMessage(gameId: string, text: string) {
-  const body = text.trim()
-  if (!body) return
-  const profile = state.profile
-  const message: Message = {
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    senderId: profile?.handle || 'me',
-    senderName: profile?.displayName || 'You',
-    avatarEmoji: profile?.avatarEmoji || '',
-    text: body,
-    timestamp: Date.now(),
-  }
-  const thread = state.gameChats[gameId] ?? EMPTY_MESSAGES
-  setState({ gameChats: { ...state.gameChats, [gameId]: [...thread, message] } })
 }
 
 // ---- Derived helpers ----
