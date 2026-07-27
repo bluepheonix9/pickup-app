@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native'
+import { signInWithProvider, type OAuthProvider } from '../src/lib/socialAuth'
 import { supabase } from '../src/lib/supabase'
 import { colors } from '../src/theme'
 
@@ -22,7 +23,16 @@ export default function SignInScreen() {
   const [email, setEmail] = React.useState('')
   const [password, setPassword] = React.useState('')
   const [loading, setLoading] = React.useState(false)
+  const [providerLoading, setProviderLoading] = React.useState<OAuthProvider | null>(null)
   const [error, setError] = React.useState('')
+
+  async function handleProvider(provider: OAuthProvider) {
+    setProviderLoading(provider)
+    setError('')
+    const { error: err } = await signInWithProvider(provider)
+    if (err) setError(err)
+    setProviderLoading(null)
+  }
 
   async function handleSubmit() {
     const trimmedEmail = email.trim()
@@ -168,12 +178,52 @@ export default function SignInScreen() {
             )}
           </TouchableOpacity>
 
+          {/* Divider */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 16 }}>
+            <View style={{ flex: 1, height: 0.5, backgroundColor: colors.border }} />
+            <Text style={{ fontSize: 11, color: colors.textMuted, letterSpacing: 0.8 }}>OR</Text>
+            <View style={{ flex: 1, height: 0.5, backgroundColor: colors.border }} />
+          </View>
+
+          {/* Social sign-in */}
+          {([
+            { provider: 'google', label: 'Continue with Google', icon: 'logo-google' },
+            { provider: 'apple', label: 'Continue with Apple', icon: 'logo-apple' },
+          ] as const).map(({ provider, label, icon }) => (
+            <TouchableOpacity
+              key={provider}
+              onPress={() => handleProvider(provider)}
+              disabled={providerLoading !== null || loading}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: 8,
+                backgroundColor: colors.surface2,
+                borderRadius: 12,
+                paddingVertical: 14,
+                marginBottom: 10,
+                borderWidth: 0.5,
+                borderColor: colors.borderStrong,
+              }}
+            >
+              {providerLoading === provider ? (
+                <ActivityIndicator color={colors.textPrimary} />
+              ) : (
+                <>
+                  <Ionicons name={icon} size={18} color={colors.textPrimary} />
+                  <Text style={{ fontSize: 14, fontWeight: '600', color: colors.textPrimary }}>{label}</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          ))}
+
           <TouchableOpacity
             onPress={() => {
               setMode(mode === 'sign-in' ? 'sign-up' : 'sign-in')
               setError('')
             }}
-            style={{ alignItems: 'center', paddingVertical: 8 }}
+            style={{ alignItems: 'center', paddingVertical: 8, marginTop: 6 }}
           >
             <Text style={{ fontSize: 13, color: colors.textSecondary }}>
               {mode === 'sign-in' ? "Don't have an account? " : 'Already have an account? '}
