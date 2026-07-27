@@ -2,7 +2,7 @@ import { Ionicons } from '@expo/vector-icons'
 import { router } from 'expo-router'
 import { Text, TouchableOpacity, View } from 'react-native'
 import { getGameImageColor } from '../lib/games'
-import { effectiveSpotsLeft, useIsJoined } from '../lib/store'
+import { effectiveSpotsLeft, useIsJoined, useJoinedCount } from '../lib/store'
 import { colors } from '../theme'
 import type { Game } from '../types/game'
 import { Difficulty } from './Difficulty'
@@ -10,7 +10,7 @@ import { Difficulty } from './Difficulty'
 // Compact card for horizontal carousels (curated Home rows).
 export function GameMiniCard({ game, width = 190 }: { game: Game; width?: number }) {
   const joined = useIsJoined(game.id)
-  const spotsLeft = effectiveSpotsLeft(game, joined)
+  const spotsLeft = effectiveSpotsLeft(game, useJoinedCount(game.id))
 
   return (
     <TouchableOpacity

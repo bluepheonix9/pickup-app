@@ -8,9 +8,9 @@ import { GameHero } from '../../src/components/GameHero'
 import { Difficulty } from '../../src/components/Difficulty'
 import { GameChat } from '../../src/components/GameChat'
 import { JoinSheet } from '../../src/components/JoinSheet'
-import { formatGameDateLong, formatVenueLabel, getGameById } from '../../src/lib/games'
+import { formatGameDateLong, formatVenueLabel } from '../../src/lib/games'
 import { deleteGame } from '../../src/lib/gamesSync'
-import { effectiveSpotsLeft, joinGame, leaveGame, removeLocalGame, toggleSaved, useIsHosted, useIsJoined, useIsSaved } from '../../src/lib/store'
+import { effectiveSpotsLeft, joinGame, leaveGame, removeLocalGame, toggleSaved, useIsHosted, useIsJoined, useIsSaved, useJoinedCount, useRemoteGames } from '../../src/lib/store'
 import type { GameStatus } from '../../src/types/game'
 
 function BadgePill({ status }: { status: GameStatus }) {
@@ -65,9 +65,13 @@ export default function GameDetailScreen() {
 
   const saved = useIsSaved(id ?? '')
   const joined = useIsJoined(id ?? '')
+  const joinedCount = useJoinedCount(id ?? '')
   // Subscribes to hostedGames, so the screen re-derives after an edit/cancel.
   const hosted = useIsHosted(id ?? '')
-  const game = id ? getGameById(id) : undefined
+  // Subscribe to the games list so the screen re-renders once games load — e.g.
+  // on a direct load / deep link that lands here before the fetch completes.
+  const remote = useRemoteGames()
+  const game = id ? remote.find((g) => g.id === id) : undefined
   const [sheetVisible, setSheetVisible] = React.useState(false)
   const [confirmCancel, setConfirmCancel] = React.useState(false)
   const [cancelling, setCancelling] = React.useState(false)
@@ -83,7 +87,7 @@ export default function GameDetailScreen() {
     )
   }
 
-  const spotsLeft = effectiveSpotsLeft(game, joined)
+  const spotsLeft = effectiveSpotsLeft(game, joinedCount)
 
   async function handleCancel() {
     if (!confirmCancel) {

@@ -4,7 +4,7 @@ import { ActivityIndicator, View } from 'react-native'
 import { AuthProvider, useAuth } from '../src/lib/auth'
 import { loadGames } from '../src/lib/gamesSync'
 import { fetchProfile } from '../src/lib/profileSync'
-import { clearProfile, loadStateFromStorage, saveProfile, setCurrentUser } from '../src/lib/store'
+import { clearMembers, clearProfile, loadMembers, loadStateFromStorage, saveProfile, setCurrentUser } from '../src/lib/store'
 import { colors } from '../src/theme'
 
 function RootNavigator() {
@@ -23,6 +23,7 @@ function RootNavigator() {
     setCurrentUser(userId ?? null)
     if (!userId) {
       clearProfile()
+      clearMembers()
       return
     }
     let cancelled = false
@@ -30,6 +31,7 @@ function RootNavigator() {
       if (!cancelled && profile) saveProfile(profile)
     })
     void loadGames()
+    void loadMembers()
     return () => {
       cancelled = true
     }

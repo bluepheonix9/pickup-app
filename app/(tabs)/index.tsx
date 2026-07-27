@@ -8,7 +8,7 @@ import { DEFAULT_FILTERS, FilterSheet, countActiveFilters, type HomeFilters } fr
 import { GameMiniCard } from '../../src/components/GameMiniCard'
 import { formatVenueLabel, getFeaturedWeekendGames, getFeedGames, getFreeGames, getGameImageColor, getNearbyGames } from '../../src/lib/games'
 import { loadGames } from '../../src/lib/gamesSync'
-import { effectiveSpotsLeft, toggleSaved, useIsJoined, useIsSaved, useRemoteGames } from '../../src/lib/store'
+import { effectiveSpotsLeft, toggleSaved, useIsJoined, useIsSaved, useJoinedCount, useRemoteGames } from '../../src/lib/store'
 import { colors } from '../../src/theme'
 import type { Game, GameFilters, GameStatus, TimeWindow } from '../../src/types/game'
 
@@ -53,7 +53,7 @@ function BadgePill({ status }: { status: GameStatus }) {
 function GameCard({ game }: { game: Game }) {
   const saved = useIsSaved(game.id)
   const joined = useIsJoined(game.id)
-  const spotsLeft = effectiveSpotsLeft(game, joined)
+  const spotsLeft = effectiveSpotsLeft(game, useJoinedCount(game.id))
   const lowSpots = spotsLeft <= 3
 
   return (
