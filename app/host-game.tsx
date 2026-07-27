@@ -140,6 +140,20 @@ export default function HostGameScreen() {
       ? { lat: editing.venue.lat, lng: editing.venue.lng }
       : null,
   )
+  // Web has no map picker (pick-venue is native-only), so coordinates are typed
+  // in directly there. These back the two web fields and sync into venueCoords.
+  const [latInput, setLatInput] = React.useState(() =>
+    editing && editing.venue.lat !== 0 ? String(editing.venue.lat) : '',
+  )
+  const [lngInput, setLngInput] = React.useState(() =>
+    editing && editing.venue.lng !== 0 ? String(editing.venue.lng) : '',
+  )
+  React.useEffect(() => {
+    if (Platform.OS !== 'web') return
+    const lat = parseFloat(latInput)
+    const lng = parseFloat(lngInput)
+    setVenueCoords(Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null)
+  }, [latInput, lngInput])
   const [area, setArea] = React.useState(() => editing?.venue.area ?? '')
   const [dateChoice, setDateChoice] = React.useState<DateChoice | null>(() =>
     editing ? deriveDateChoice(editing.startsAt) : null,
@@ -158,6 +172,7 @@ export default function HostGameScreen() {
   const canPost =
     sport !== '' &&
     area !== '' &&
+    venueCoords !== null &&
     dateChoice !== null &&
     time.trim() !== '' &&
     spots.trim() !== '' &&
@@ -290,14 +305,26 @@ export default function HostGameScreen() {
 
           <Section title="VENUE NAME">
             <Field value={venueName} onChangeText={setVenueName} placeholder="e.g. Bondi Skate Park Courts" />
-            {Platform.OS !== 'web' && (
+          </Section>
+
+          <Section title="LOCATION">
+            {Platform.OS === 'web' ? (
+              // No map picker on web — enter coordinates directly.
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <View style={{ flex: 1 }}>
+                  <Field value={latInput} onChangeText={setLatInput} placeholder="Latitude e.g. -33.89" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Field value={lngInput} onChangeText={setLngInput} placeholder="Longitude e.g. 151.27" />
+                </View>
+              </View>
+            ) : (
               <TouchableOpacity
                 onPress={pickLocation}
                 style={{
                   flexDirection: 'row',
                   alignItems: 'center',
                   gap: 8,
-                  marginTop: 10,
                   backgroundColor: colors.surface2,
                   borderRadius: 12,
                   paddingHorizontal: 12,
@@ -313,6 +340,11 @@ export default function HostGameScreen() {
                     : 'Pick location on map'}
                 </Text>
               </TouchableOpacity>
+            )}
+            {venueCoords === null && (
+              <Text style={{ fontSize: 12, color: colors.textMuted, marginTop: 8 }}>
+                A location is required so your game appears on the map.
+              </Text>
             )}
           </Section>
 
