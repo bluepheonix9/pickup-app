@@ -1,7 +1,8 @@
 import { Ionicons } from '@expo/vector-icons'
 import React from 'react'
 import { ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native'
-import { sendGameMessage, useGameMessages } from '../lib/store'
+import { useAuth } from '../lib/auth'
+import { fetchMessages, sendMessage, subscribeToGameMessages } from '../lib/chatSync'
 import { colors } from '../theme'
 import type { Message } from '../types/message'
 
@@ -60,15 +61,33 @@ function MessageRow({ message }: { message: Message }) {
 }
 
 export function GameChat({ gameId }: { gameId: string }) {
-  const messages = useGameMessages(gameId)
+  const { user } = useAuth()
+  const [messages, setMessages] = React.useState<Message[]>([])
   const [draft, setDraft] = React.useState('')
   const scrollRef = React.useRef<ScrollView>(null)
 
-  const canSend = draft.trim() !== ''
+  // Load history, then refetch on every inserted message (Realtime), which also
+  // covers our own sends. Re-runs if the game changes; cleans up the channel.
+  React.useEffect(() => {
+    let active = true
+    const load = () => {
+      fetchMessages(gameId).then((msgs) => {
+        if (active) setMessages(msgs)
+      })
+    }
+    load()
+    const unsubscribe = subscribeToGameMessages(gameId, load)
+    return () => {
+      active = false
+      unsubscribe()
+    }
+  }, [gameId])
+
+  const canSend = draft.trim() !== '' && !!user
 
   function send() {
-    if (!canSend) return
-    sendGameMessage(gameId, draft)
+    if (!canSend || !user) return
+    void sendMessage(gameId, user.id, draft)
     setDraft('')
   }
 
