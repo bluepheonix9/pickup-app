@@ -171,21 +171,23 @@ export function isPastGame(game: Game, now = new Date()): boolean {
 
 // ---- Curated sections (Home) ----
 
-// Approximate "current location" for the demo (Bondi Junction, Sydney).
-const USER_LOCATION = { lat: -33.8908, lng: 151.2497 }
+// Fallback origin for "near you" when the device location is unavailable
+// (permission denied, or web without a granted prompt): central Sydney.
+export const DEFAULT_LOCATION = { lat: -33.8908, lng: 151.2497 } // Bondi Junction
 
 // Cheap planar distance — good enough to rank nearby venues within a city.
-function distanceTo(game: Game): number {
-  const dLat = game.venue.lat - USER_LOCATION.lat
-  const dLng = game.venue.lng - USER_LOCATION.lng
+function distanceFrom(origin: { lat: number; lng: number }, game: Game): number {
+  const dLat = game.venue.lat - origin.lat
+  const dLng = game.venue.lng - origin.lng
   return Math.sqrt(dLat * dLat + dLng * dLng)
 }
 
-// Non-past games, nearest first.
-export function getNearbyGames(games: Game[], limit = 6): Game[] {
+// Non-past games, nearest first from `origin` (the device location when known,
+// otherwise DEFAULT_LOCATION).
+export function getNearbyGames(games: Game[], origin: { lat: number; lng: number } = DEFAULT_LOCATION, limit = 6): Game[] {
   return games
     .filter((game) => !isPastGame(game))
-    .sort((a, b) => distanceTo(a) - distanceTo(b))
+    .sort((a, b) => distanceFrom(origin, a) - distanceFrom(origin, b))
     .slice(0, limit)
 }
 
