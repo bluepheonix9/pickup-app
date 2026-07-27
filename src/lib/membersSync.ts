@@ -38,3 +38,18 @@ export async function deleteMembership(userId: string, gameId: string, role: Mem
     .eq('role', role)
   return { error: error?.message ?? null }
 }
+
+// Subscribe to all membership changes via Realtime so joined counts / spots-left
+// update live when anyone (any user) joins or leaves — not just on reload.
+// `onChange` fires on every insert/update/delete; the caller re-fetches. Returns
+// an unsubscribe function.
+export function subscribeToMembers(onChange: () => void): () => void {
+  const channel = supabase
+    .channel('game_members:all')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'game_members' }, () => onChange())
+    .subscribe()
+
+  return () => {
+    void supabase.removeChannel(channel)
+  }
+}
