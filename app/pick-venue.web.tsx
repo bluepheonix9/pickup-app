@@ -3,7 +3,7 @@ import { Text, TouchableOpacity, View } from 'react-native'
 import { colors } from '../src/theme'
 
 // react-native-maps is native-only, so the web build gets a placeholder and
-// the host form falls back to entering the venue by name.
+// the host form falls back to entering coordinates directly.
 export default function PickVenueWebScreen() {
   return (
     <View style={{ flex: 1, backgroundColor: colors.background, alignItems: 'center', justifyContent: 'center', padding: 32 }}>

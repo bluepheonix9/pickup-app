@@ -280,7 +280,6 @@ const EMPTY_PROFILE: Profile = {
   bio: '',
   homeArea: '',
   favoriteSports: [],
-  skillLevel: 'beginner',
   avatarEmoji: '',
 }
 

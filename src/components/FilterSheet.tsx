@@ -1,6 +1,7 @@
 import { Ionicons } from '@expo/vector-icons'
 import React from 'react'
 import { Modal, Pressable, ScrollView, Text, TouchableOpacity, View } from 'react-native'
+import { DIFFICULTY_OPTIONS, difficultyLabel } from '../lib/difficulty'
 import { getAreas, getBrowseTags, getSports } from '../lib/games'
 import { useRemoteGames } from '../lib/store'
 import { colors } from '../theme'
@@ -69,7 +70,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
   )
 }
 
-const DIFFICULTIES: (Difficulty | 'all')[] = ['all', 'beginner', 'intermediate', 'advanced']
+const DIFFICULTIES: (Difficulty | 'all')[] = ['all', ...DIFFICULTY_OPTIONS]
 const PRICES: (PriceFilter | 'all')[] = ['all', 'free', 'paid']
 
 function cap(s: string): string {
@@ -145,7 +146,7 @@ export function FilterSheet({ visible, initial, countFor, onClose, onApply }: Fi
 
             <Section title="DIFFICULTY">
               {DIFFICULTIES.map((lvl) => (
-                <Chip key={lvl} label={lvl === 'all' ? 'Any' : cap(lvl)} selected={draft.difficulty === lvl} onPress={() => setDraft((d) => ({ ...d, difficulty: lvl }))} />
+                <Chip key={lvl} label={lvl === 'all' ? 'Any' : difficultyLabel(lvl)} selected={draft.difficulty === lvl} onPress={() => setDraft((d) => ({ ...d, difficulty: lvl }))} />
               ))}
             </Section>
           </ScrollView>
