@@ -1,4 +1,5 @@
 import type { Difficulty, Game, GameStatus } from '../types/game'
+import { DIFFICULTY_OPTIONS } from './difficulty'
 import { setRemoteGames } from './store'
 import { supabase } from './supabase'
 
@@ -16,6 +17,7 @@ type GameRow = {
   venue_lat: number
   venue_lng: number
   starts_at: string
+  ends_at: string | null
   start_time: string
   price: string
   status: string
@@ -30,11 +32,10 @@ type GameRow = {
 // Columns to fetch, including the embedded host profile as `organizer`.
 const SELECT = '*, organizer:profiles!games_host_id_fkey(display_name, avatar_emoji)'
 
-const DIFFICULTIES: Difficulty[] = ['beginner', 'intermediate', 'advanced']
 const STATUSES: GameStatus[] = ['live', 'upcoming', 'open']
 
 function toDifficulty(raw: string): Difficulty {
-  return DIFFICULTIES.includes(raw as Difficulty) ? (raw as Difficulty) : 'beginner'
+  return DIFFICULTY_OPTIONS.includes(raw as Difficulty) ? (raw as Difficulty) : 'open'
 }
 
 function toStatus(raw: string): GameStatus {
@@ -52,6 +53,7 @@ export function mapRowToGame(row: GameRow): Game {
     tags: row.tags ?? [],
     venue: { name: row.venue_name, area: row.venue_area, lat: row.venue_lat, lng: row.venue_lng },
     startsAt: row.starts_at,
+    endsAt: row.ends_at ?? undefined,
     startTime: row.start_time,
     price: row.price,
     status: toStatus(row.status),
@@ -75,7 +77,11 @@ export type GameInput = {
   tags: string[]
   venue: { name: string; area: string; lat: number; lng: number }
   startsAt: string
+  endsAt?: string
   startTime: string
+  // Public URL of the host's uploaded photo. Undefined means "no photo" — the
+  // card falls back to imageFallback.
+  imageUrl?: string
   price: string
   status: GameStatus
   imageFallback: string
@@ -95,6 +101,9 @@ function toColumns(input: GameInput) {
     venue_lat: input.venue.lat,
     venue_lng: input.venue.lng,
     starts_at: input.startsAt,
+    // null (not undefined) so clearing these on edit actually wipes them.
+    ends_at: input.endsAt ?? null,
+    image_url: input.imageUrl ?? null,
     start_time: input.startTime,
     price: input.price,
     status: input.status,

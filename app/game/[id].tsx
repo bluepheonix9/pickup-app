@@ -8,6 +8,7 @@ import { GameHero } from '../../src/components/GameHero'
 import { Difficulty } from '../../src/components/Difficulty'
 import { GameChat } from '../../src/components/GameChat'
 import { JoinSheet } from '../../src/components/JoinSheet'
+import { formatTimeLabel } from '../../src/lib/dates'
 import { formatGameDateLong, formatVenueLabel } from '../../src/lib/games'
 import { deleteGame } from '../../src/lib/gamesSync'
 import { effectiveSpotsLeft, joinGame, leaveGame, removeLocalGame, toggleSaved, useIsHosted, useIsJoined, useIsSaved, useJoinedCount, useRemoteGames } from '../../src/lib/store'
@@ -170,7 +171,15 @@ export default function GameDetailScreen() {
 
           <View style={{ gap: 14 }}>
             <DetailRow icon="calendar-outline" label="Date" value={formatGameDateLong(game)} />
-            <DetailRow icon="time-outline" label="Start time" value={game.startTime} />
+            <DetailRow
+              icon="time-outline"
+              label={game.endsAt ? 'Time' : 'Start time'}
+              value={
+                game.endsAt
+                  ? `${formatTimeLabel(new Date(game.startsAt))} – ${formatTimeLabel(new Date(game.endsAt))}`
+                  : game.startTime
+              }
+            />
             <DetailRow icon="pricetag-outline" label="Entry" value={game.price} />
             <DetailRow icon="football-outline" label="Sport" value={game.sport} />
             <DetailRow icon="people-outline" label="Spots" value={`${spotsLeft} of ${game.spots} spots left`} />

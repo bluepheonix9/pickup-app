@@ -1,68 +1,18 @@
 import { Ionicons } from '@expo/vector-icons'
 import { router, useLocalSearchParams } from 'expo-router'
 import React from 'react'
-import { ActivityIndicator, KeyboardAvoidingView, Platform, ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View } from 'react-native'
-import { daysUntilWeekday, relativeISO } from '../src/lib/dates'
+import { ActivityIndicator, Image, KeyboardAvoidingView, Platform, ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View } from 'react-native'
+import { DateTimeField } from '../src/components/DateTimeField'
 import { useAuth } from '../src/lib/auth'
+import { formatStartTime, formatTimeLabel, isSameDay, nextHalfHour, normalizeEnd } from '../src/lib/dates'
+import { DIFFICULTY_OPTIONS, difficultyLabel } from '../src/lib/difficulty'
 import { AREA_OPTIONS, getBrowseTags, getGameById, SPORT_OPTIONS } from '../src/lib/games'
 import { insertGame, updateGame, type GameInput } from '../src/lib/gamesSync'
+import { pickGameImage, uploadGameImage, type PickedImage } from '../src/lib/imageUpload'
 import { upsertLocalGame, useRemoteGames } from '../src/lib/store'
 import { requestVenuePick } from '../src/lib/venuePicker'
 import { colors } from '../src/theme'
 import type { Difficulty } from '../src/types/game'
-
-const SATURDAY = 6
-
-type DateChoice = 'today' | 'tomorrow' | 'weekend'
-
-const DATE_CHIPS: { key: DateChoice; label: string }[] = [
-  { key: 'today', label: 'Today' },
-  { key: 'tomorrow', label: 'Tomorrow' },
-  { key: 'weekend', label: 'This weekend' },
-]
-
-const DIFFICULTIES: Difficulty[] = ['beginner', 'intermediate', 'advanced']
-
-function cap(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1)
-}
-
-function daysFromToday(choice: DateChoice): number {
-  if (choice === 'today') return 0
-  if (choice === 'tomorrow') return 1
-  return daysUntilWeekday(SATURDAY)
-}
-
-// ---- Reverse-mapping helpers, used to prefill the form when editing ----
-
-function calendarDay(d: Date): number {
-  return Math.floor(new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime() / 86_400_000)
-}
-
-// Best-effort: the exact date isn't stored, only which chip produced it.
-function deriveDateChoice(iso: string): DateChoice {
-  const diff = calendarDay(new Date(iso)) - calendarDay(new Date())
-  if (diff <= 0) return 'today'
-  if (diff === 1) return 'tomorrow'
-  return 'weekend'
-}
-
-function formatTimeInput(iso: string): string {
-  return new Date(iso).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })
-}
-
-// Loose "6pm" / "6:30 PM" / "18:00" parse; null when it doesn't look like a time.
-function parseTime(raw: string): { hour: number; minute: number } | null {
-  const m = raw.trim().match(/^(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i)
-  if (!m) return null
-  let hour = parseInt(m[1], 10)
-  const minute = m[2] ? parseInt(m[2], 10) : 0
-  const meridiem = m[3]?.toLowerCase()
-  if (hour > 23 || minute > 59) return null
-  if (meridiem === 'pm' && hour < 12) hour += 12
-  if (meridiem === 'am' && hour === 12) hour = 0
-  return { hour, minute }
-}
 
 function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
   return (
@@ -155,10 +105,13 @@ export default function HostGameScreen() {
     setVenueCoords(Number.isFinite(lat) && Number.isFinite(lng) ? { lat, lng } : null)
   }, [latInput, lngInput])
   const [area, setArea] = React.useState(() => editing?.venue.area ?? '')
-  const [dateChoice, setDateChoice] = React.useState<DateChoice | null>(() =>
-    editing ? deriveDateChoice(editing.startsAt) : null,
+  const [startsAt, setStartsAt] = React.useState<Date | null>(() =>
+    editing ? new Date(editing.startsAt) : null,
   )
-  const [time, setTime] = React.useState(() => (editing ? formatTimeInput(editing.startsAt) : ''))
+  const [endsAt, setEndsAt] = React.useState<Date | null>(() =>
+    editing?.endsAt ? new Date(editing.endsAt) : null,
+  )
+  const [showEnd, setShowEnd] = React.useState(() => !!editing?.endsAt)
   const [spots, setSpots] = React.useState(() => (editing ? String(editing.spots) : ''))
   const [priceMode, setPriceMode] = React.useState<'free' | 'paid' | null>(() =>
     editing ? (editing.price === 'Free' ? 'free' : 'paid') : null,
@@ -168,13 +121,39 @@ export default function HostGameScreen() {
   )
   const [difficulty, setDifficulty] = React.useState<Difficulty | null>(() => editing?.difficulty ?? null)
   const [tags, setTags] = React.useState<string[]>(() => editing?.tags ?? [])
+  // The already-uploaded photo (when editing), and a freshly picked one that
+  // hasn't been uploaded yet. The new pick wins for both preview and save.
+  const [savedImageUrl, setSavedImageUrl] = React.useState<string | undefined>(() => editing?.imageUrl)
+  const [pickedImage, setPickedImage] = React.useState<PickedImage | null>(null)
+  const previewUri = pickedImage?.uri ?? savedImageUrl
+
+  // A game can't start in the past. Existing games keep their original start as
+  // the floor so editing one that already began doesn't force a reschedule.
+  const minimumDate = React.useMemo(
+    () => (editing ? new Date(Math.min(new Date(editing.startsAt).getTime(), Date.now())) : new Date()),
+    [editing],
+  )
+
+  // The end time is entered as a clock time, so it lands on the start's day —
+  // roll it forward when the game runs past midnight.
+  const resolvedEnd = React.useMemo(
+    () => (startsAt && showEnd && endsAt ? normalizeEnd(startsAt, endsAt) : null),
+    [startsAt, showEnd, endsAt],
+  )
+  const endsNextDay = resolvedEnd !== null && startsAt !== null && !isSameDay(startsAt, resolvedEnd)
+
+  // The venue search fills these in, but a hand-dropped pin may not resolve to
+  // a known suburb — keep any area it did find selectable alongside the presets.
+  const areaOptions = React.useMemo(
+    () => (area !== '' && !AREA_OPTIONS.includes(area) ? [area, ...AREA_OPTIONS] : AREA_OPTIONS),
+    [area],
+  )
 
   const canPost =
     sport !== '' &&
     area !== '' &&
     venueCoords !== null &&
-    dateChoice !== null &&
-    time.trim() !== '' &&
+    startsAt !== null &&
     spots.trim() !== '' &&
     priceMode !== null &&
     difficulty !== null &&
@@ -188,22 +167,60 @@ export default function HostGameScreen() {
     setTags((current) => (current.includes(tag) ? current.filter((t) => t !== tag) : [...current, tag]))
   }
 
+  async function choosePhoto() {
+    const { image, error: pickError } = await pickGameImage()
+    if (pickError) {
+      setError(pickError)
+      return
+    }
+    if (!image) return // User backed out of the picker.
+    setError('')
+    setPickedImage(image)
+  }
+
+  function removePhoto() {
+    setPickedImage(null)
+    setSavedImageUrl(undefined)
+  }
+
   function pickLocation() {
-    requestVenuePick(({ lat, lng }) => setVenueCoords({ lat, lng }))
+    requestVenuePick((pick) => {
+      setVenueCoords({ lat: pick.lat, lng: pick.lng })
+      // Only overwrite what the host hasn't already typed themselves.
+      if (pick.name && venueName.trim() === '') setVenueName(pick.name)
+      if (pick.area) {
+        setArea(pick.area)
+        autoTitle(sport, pick.area)
+      }
+    })
     router.push('/pick-venue')
   }
 
   async function post() {
-    if (!canPost || !dateChoice || !difficulty) return
+    if (!canPost || !startsAt || !difficulty) return
     if (!user) {
       setError('You must be signed in to host a game.')
       return
     }
-    const parsed = parseTime(time)
-    const trimmedTime = time.trim()
     const totalSpots = parseInt(spots, 10) || 10
     // Preserve how many spots are already taken as total spots changes on edit.
     const taken = editing ? editing.spots - editing.spotsLeft : 0
+
+    setSaving(true)
+    setError('')
+
+    // Upload a newly picked photo first — no point writing the game row if the
+    // image fails. An unchanged photo keeps whatever URL it already had.
+    let imageUrl = savedImageUrl
+    if (pickedImage) {
+      const { url, error: uploadError } = await uploadGameImage(user.id, pickedImage)
+      if (uploadError || !url) {
+        setSaving(false)
+        setError(uploadError ?? 'Could not upload that photo.')
+        return
+      }
+      imageUrl = url
+    }
 
     const input: GameInput = {
       title: title.trim() || `${sport} — ${area}`,
@@ -211,18 +228,18 @@ export default function HostGameScreen() {
       difficulty,
       tags,
       venue: { name: venueName.trim() || 'TBC', area, lat: venueCoords?.lat ?? 0, lng: venueCoords?.lng ?? 0 },
-      startsAt: relativeISO(daysFromToday(dateChoice), parsed?.hour ?? 18, parsed?.minute ?? 0),
-      startTime: trimmedTime ? `Starts ${trimmedTime}` : 'Starts 6pm',
+      startsAt: startsAt.toISOString(),
+      endsAt: resolvedEnd?.toISOString(),
+      startTime: formatStartTime(startsAt, resolvedEnd),
       price: priceMode === 'free' ? 'Free' : priceAmount.trim() || '$?',
       status: editing?.status ?? 'open',
+      imageUrl,
       imageFallback: editing?.imageFallback ?? '#1A1A1A',
       featured: editing?.featured ?? false,
       spots: totalSpots,
       spotsLeft: editing ? Math.max(0, totalSpots - taken) : totalSpots,
     }
 
-    setSaving(true)
-    setError('')
     const { game, error: err } = editing
       ? await updateGame(editing.id, input)
       : await insertGame(user.id, input)
@@ -303,8 +320,73 @@ export default function HostGameScreen() {
             />
           </Section>
 
-          <Section title="VENUE NAME">
-            <Field value={venueName} onChangeText={setVenueName} placeholder="e.g. Bondi Skate Park Courts" />
+          <Section title="PHOTO (OPTIONAL)">
+            {previewUri ? (
+              <View style={{ gap: 8 }}>
+                <Image
+                  source={{ uri: previewUri }}
+                  style={{ width: '100%', aspectRatio: 16 / 9, borderRadius: 12, backgroundColor: colors.surface2 }}
+                  resizeMode="cover"
+                />
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TouchableOpacity
+                    onPress={choosePhoto}
+                    style={{
+                      flex: 1,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6,
+                      backgroundColor: colors.surface2,
+                      borderRadius: 12,
+                      paddingVertical: 10,
+                      borderWidth: 0.5,
+                      borderColor: colors.borderStrong,
+                    }}
+                  >
+                    <Ionicons name="swap-horizontal-outline" size={15} color={colors.textSecondary} />
+                    <Text style={{ fontSize: 13, color: colors.textSecondary }}>Replace</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={removePhoto}
+                    style={{
+                      flex: 1,
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 6,
+                      backgroundColor: colors.surface2,
+                      borderRadius: 12,
+                      paddingVertical: 10,
+                      borderWidth: 0.5,
+                      borderColor: colors.borderStrong,
+                    }}
+                  >
+                    <Ionicons name="trash-outline" size={15} color={colors.textSecondary} />
+                    <Text style={{ fontSize: 13, color: colors.textSecondary }}>Remove</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <TouchableOpacity
+                onPress={choosePhoto}
+                style={{
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: 6,
+                  backgroundColor: colors.surface2,
+                  borderRadius: 12,
+                  paddingVertical: 28,
+                  borderWidth: 0.5,
+                  borderStyle: 'dashed',
+                  borderColor: colors.borderStrong,
+                }}
+              >
+                <Ionicons name="image-outline" size={22} color={colors.textSecondary} />
+                <Text style={{ fontSize: 13, color: colors.textSecondary }}>Add a photo</Text>
+                <Text style={{ fontSize: 11, color: colors.textMuted }}>Shown on your game card</Text>
+              </TouchableOpacity>
+            )}
           </Section>
 
           <Section title="LOCATION">
@@ -333,12 +415,13 @@ export default function HostGameScreen() {
                   borderColor: venueCoords ? colors.accent : colors.borderStrong,
                 }}
               >
-                <Ionicons name="location-outline" size={16} color={venueCoords ? colors.accent : colors.textSecondary} />
-                <Text style={{ fontSize: 13, color: venueCoords ? colors.textPrimary : colors.textSecondary }}>
+                <Ionicons name="search-outline" size={16} color={venueCoords ? colors.accent : colors.textSecondary} />
+                <Text style={{ flex: 1, fontSize: 13, color: venueCoords ? colors.textPrimary : colors.textSecondary }} numberOfLines={1}>
                   {venueCoords
-                    ? `📍 Selected: ${venueCoords.lat.toFixed(4)}, ${venueCoords.lng.toFixed(4)}`
-                    : 'Pick location on map'}
+                    ? venueName.trim() || `${venueCoords.lat.toFixed(4)}, ${venueCoords.lng.toFixed(4)}`
+                    : 'Search for a venue or drop a pin'}
                 </Text>
+                <Ionicons name="chevron-forward" size={14} color={colors.textMuted} />
               </TouchableOpacity>
             )}
             {venueCoords === null && (
@@ -348,9 +431,13 @@ export default function HostGameScreen() {
             )}
           </Section>
 
+          <Section title="VENUE NAME">
+            <Field value={venueName} onChangeText={setVenueName} placeholder="e.g. Bondi Skate Park Courts" />
+          </Section>
+
           <Section title="AREA">
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {AREA_OPTIONS.map((a) => (
+              {areaOptions.map((a) => (
                 <Chip
                   key={a}
                   label={a}
@@ -364,16 +451,66 @@ export default function HostGameScreen() {
             </View>
           </Section>
 
-          <Section title="DATE">
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {DATE_CHIPS.map((chip) => (
-                <Chip key={chip.key} label={chip.label} selected={dateChoice === chip.key} onPress={() => setDateChoice(chip.key)} />
-              ))}
-            </View>
+          <Section title="STARTS">
+            <DateTimeField
+              mode="datetime"
+              value={startsAt}
+              onChange={setStartsAt}
+              placeholder="Pick a date and time"
+              minimumDate={minimumDate}
+            />
           </Section>
 
-          <Section title="TIME">
-            <Field value={time} onChangeText={setTime} placeholder="e.g. 6:00 PM" />
+          <Section title="ENDS (OPTIONAL)">
+            {showEnd ? (
+              <View style={{ gap: 8 }}>
+                <DateTimeField
+                  mode="time"
+                  value={endsAt}
+                  onChange={setEndsAt}
+                  placeholder="Pick an end time"
+                />
+                <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <Text style={{ fontSize: 12, color: colors.textMuted }}>
+                    {startsAt && resolvedEnd
+                      ? `${formatTimeLabel(startsAt)} – ${formatTimeLabel(resolvedEnd)}${endsNextDay ? ' (next day)' : ''}`
+                      : 'Set a start time first.'}
+                  </Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      setShowEnd(false)
+                      setEndsAt(null)
+                    }}
+                    hitSlop={8}
+                  >
+                    <Text style={{ fontSize: 12, color: colors.textSecondary }}>Remove</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <TouchableOpacity
+                onPress={() => {
+                  setShowEnd(true)
+                  // Default to an hour and a half of play.
+                  const base = startsAt ?? nextHalfHour()
+                  setEndsAt(new Date(base.getTime() + 90 * 60_000))
+                }}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  gap: 8,
+                  backgroundColor: colors.surface2,
+                  borderRadius: 12,
+                  paddingHorizontal: 12,
+                  paddingVertical: 12,
+                  borderWidth: 0.5,
+                  borderColor: colors.borderStrong,
+                }}
+              >
+                <Ionicons name="add" size={16} color={colors.textSecondary} />
+                <Text style={{ fontSize: 13, color: colors.textSecondary }}>Add an end time</Text>
+              </TouchableOpacity>
+            )}
           </Section>
 
           <Section title="SPOTS">
@@ -390,8 +527,13 @@ export default function HostGameScreen() {
 
           <Section title="DIFFICULTY">
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {DIFFICULTIES.map((level) => (
-                <Chip key={level} label={cap(level)} selected={difficulty === level} onPress={() => setDifficulty(level)} />
+              {DIFFICULTY_OPTIONS.map((level) => (
+                <Chip
+                  key={level}
+                  label={difficultyLabel(level)}
+                  selected={difficulty === level}
+                  onPress={() => setDifficulty(level)}
+                />
               ))}
             </View>
           </Section>

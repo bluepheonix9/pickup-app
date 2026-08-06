@@ -1,6 +1,7 @@
 export type GameStatus = 'live' | 'upcoming' | 'open'
 
-export type Difficulty = 'beginner' | 'intermediate' | 'advanced'
+// A game's difficulty. 'open' means "open to all levels".
+export type Difficulty = 'open' | 'beginner' | 'intermediate' | 'advanced'
 
 export type Venue = {
   name: string
@@ -22,6 +23,8 @@ export type Game = {
   tags: string[]
   venue: Venue
   startsAt: string
+  // Optional end of the game, set by the host. Undefined when they didn't say.
+  endsAt?: string
   startTime: string
   price: string
   status: GameStatus

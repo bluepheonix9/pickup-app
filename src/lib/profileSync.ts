@@ -1,4 +1,3 @@
-import type { Difficulty } from '../types/game'
 import type { Profile } from '../types/profile'
 import { supabase } from './supabase'
 
@@ -10,14 +9,7 @@ type ProfileRow = {
   bio: string
   home_area: string
   favorite_sports: string[]
-  skill_level: string
   avatar_emoji: string
-}
-
-const SKILLS: Difficulty[] = ['beginner', 'intermediate', 'advanced']
-
-function toSkill(raw: string): Difficulty {
-  return SKILLS.includes(raw as Difficulty) ? (raw as Difficulty) : 'beginner'
 }
 
 // DB row → app Profile.
@@ -28,7 +20,6 @@ export function mapRowToProfile(row: ProfileRow): Profile {
     bio: row.bio ?? '',
     homeArea: row.home_area ?? '',
     favoriteSports: row.favorite_sports ?? [],
-    skillLevel: toSkill(row.skill_level),
     avatarEmoji: row.avatar_emoji ?? '',
   }
 }
@@ -50,7 +41,6 @@ export async function upsertProfile(userId: string, profile: Profile) {
     bio: profile.bio,
     home_area: profile.homeArea,
     favorite_sports: profile.favoriteSports,
-    skill_level: profile.skillLevel,
     avatar_emoji: profile.avatarEmoji,
     updated_at: new Date().toISOString(),
   })

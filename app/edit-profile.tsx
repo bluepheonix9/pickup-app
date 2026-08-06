@@ -7,11 +7,9 @@ import { AREA_OPTIONS, SPORT_OPTIONS } from '../src/lib/games'
 import { upsertProfile } from '../src/lib/profileSync'
 import { saveProfile, useProfile } from '../src/lib/store'
 import { colors } from '../src/theme'
-import type { Difficulty } from '../src/types/game'
 import type { Profile } from '../src/types/profile'
 
 const AVATAR_EMOJI = ['🏀', '⚽', '🎾', '🏐', '🏉', '🏸', '🏃', '🔥', '😎', '👟']
-const SKILL_LEVELS: Difficulty[] = ['beginner', 'intermediate', 'advanced']
 
 const BLANK: Profile = {
   displayName: '',
@@ -19,17 +17,12 @@ const BLANK: Profile = {
   bio: '',
   homeArea: '',
   favoriteSports: [],
-  skillLevel: 'beginner',
   avatarEmoji: '',
 }
 
 // Handles are stored bare (no @) — keep them url/username-ish.
 function normalizeHandle(raw: string): string {
   return raw.toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 20)
-}
-
-function cap(s: string): string {
-  return s.charAt(0).toUpperCase() + s.slice(1)
 }
 
 function Chip({ label, selected, onPress }: { label: string; selected: boolean; onPress: () => void }) {
@@ -266,14 +259,6 @@ export default function EditProfileScreen() {
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
               {SPORT_OPTIONS.map((sport) => (
                 <Chip key={sport} label={sport} selected={draft.favoriteSports.includes(sport)} onPress={() => toggleSport(sport)} />
-              ))}
-            </View>
-          </Section>
-
-          <Section title="SKILL LEVEL">
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
-              {SKILL_LEVELS.map((level) => (
-                <Chip key={level} label={cap(level)} selected={draft.skillLevel === level} onPress={() => setDraft((d) => ({ ...d, skillLevel: level }))} />
               ))}
             </View>
           </Section>

@@ -2,7 +2,6 @@ import { Ionicons } from '@expo/vector-icons'
 import { router } from 'expo-router'
 import React from 'react'
 import { ScrollView, StatusBar, Text, TouchableOpacity, View } from 'react-native'
-import { Difficulty } from '../../src/components/Difficulty'
 import { formatGameDate, formatVenueLabel } from '../../src/lib/games'
 import { useJoinedIds, useMyGames, useProfile, useSavedIds } from '../../src/lib/store'
 import { supabase } from '../../src/lib/supabase'
@@ -107,7 +106,6 @@ function ProfileView({ profile }: { profile: Profile }) {
           <Text style={{ fontSize: 13, color: colors.textMuted, marginTop: 2 }}>@{profile.handle}</Text>
         )}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 }}>
-          <Difficulty level={profile.skillLevel} compact />
           {profile.homeArea.length > 0 && (
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: colors.surface, borderRadius: 20, paddingHorizontal: 8, paddingVertical: 3, borderWidth: 0.5, borderColor: colors.borderStrong }}>
               <Ionicons name="location-outline" size={10} color={colors.textSecondary} />

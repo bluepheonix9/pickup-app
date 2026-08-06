@@ -1,5 +1,3 @@
-import type { Difficulty } from './game'
-
 export type Profile = {
   displayName: string
   // Stored without the leading @ — prepend it when displaying.
@@ -7,7 +5,6 @@ export type Profile = {
   bio: string
   homeArea: string
   favoriteSports: string[]
-  skillLevel: Difficulty
   // A single emoji used as the avatar. Empty string means "no emoji picked" —
   // render colored initials from displayName instead. (No photo picker on
   // purpose: avoids adding native deps.)
