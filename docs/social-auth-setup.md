@@ -11,7 +11,7 @@ confirms the client wiring is correct and only the provider config is missing.
 
 Supabase Dashboard → **Authentication → URL Configuration → Redirect URLs**, add:
 
-- `resona://auth-callback` — native (Expo dev build / standalone)
+- `pickup://auth-callback` — native (Expo dev build / standalone)
 - `exp://…/auth-callback` — Expo Go during development (copy the exact `exp://`
   host from the Metro terminal if you test the browser flow in Expo Go)
 - `http://localhost:8081` — local web
@@ -61,4 +61,4 @@ the Services ID (client id), Team ID, Key ID, and the `.p8` secret.
 - **Native**: requires an Expo **dev build** (the browser-based flow works in Expo
   Go too, but deep-link redirects are most reliable in a dev/standalone build).
   Tapping the button opens the provider in a web auth session and returns via
-  `resona://auth-callback`; the app exchanges the code for a session (PKCE).
+  `pickup://auth-callback`; the app exchanges the code for a session (PKCE).

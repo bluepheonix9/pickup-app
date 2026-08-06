@@ -5,6 +5,7 @@ import { AuthProvider, useAuth } from '../src/lib/auth'
 import { loadGames } from '../src/lib/gamesSync'
 import { subscribeToMembers } from '../src/lib/membersSync'
 import { fetchProfile } from '../src/lib/profileSync'
+import { registerPushToken } from '../src/lib/notifications'
 import { clearMembers, clearProfile, loadMembers, loadStateFromStorage, saveProfile, setCurrentUser } from '../src/lib/store'
 import { colors } from '../src/theme'
 
@@ -33,6 +34,7 @@ function RootNavigator() {
     })
     void loadGames()
     void loadMembers()
+    void registerPushToken(userId)
     // Keep joined counts / spots-left live: refetch memberships whenever anyone
     // joins or leaves any game.
     const unsubscribeMembers = subscribeToMembers(() => {

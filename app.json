@@ -1,11 +1,11 @@
 {
   "expo": {
-    "name": "resona",
-    "slug": "resona",
+    "name": "pickup",
+    "slug": "pickup",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "resona",
+    "scheme": "pickup",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "splash": {
@@ -15,7 +15,7 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.resona"
+      "bundleIdentifier": "com.anonymous.pickup"
     },
     "android": {
       "adaptiveIcon": {
@@ -33,6 +33,14 @@
     "plugins": [
       "expo-router",
       "expo-font",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#ffffff",
+          "sounds": []
+        }
+      ],
       [
         "expo-location",
         {
