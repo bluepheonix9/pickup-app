@@ -6,7 +6,7 @@ import { Image, RefreshControl, ScrollView, StatusBar, Text, TouchableOpacity, V
 import { Difficulty } from '../../src/components/Difficulty'
 import { DEFAULT_FILTERS, FilterSheet, countActiveFilters, type HomeFilters } from '../../src/components/FilterSheet'
 import { GameMiniCard } from '../../src/components/GameMiniCard'
-import { formatVenueLabel, getFeaturedWeekendGames, getFeedGames, getFreeGames, getGameImageColor, getNearbyGames } from '../../src/lib/games'
+import { DEFAULT_LOCATION, distanceKm, formatVenueLabel, getFeaturedWeekendGames, getFeedGames, getFreeGames, getGameImageColor, getNearbyGames, NEARBY_RADIUS_KM } from '../../src/lib/games'
 import { loadGames } from '../../src/lib/gamesSync'
 import { effectiveSpotsLeft, toggleSaved, useIsJoined, useIsSaved, useJoinedCount, useRemoteGames } from '../../src/lib/store'
 import { useUserLocation, type Coords } from '../../src/lib/useUserLocation'
@@ -19,7 +19,7 @@ const TABS: { label: string; when: TimeWindow; section: string }[] = [
   { label: 'Past events', when: 'past', section: 'PAST GAMES' },
 ]
 
-const WARNING = '#FF9500'
+
 
 // Fold the Home filter state + active time tab into a lib query.
 function toGameFilters(when: TimeWindow, f: HomeFilters): GameFilters {
@@ -99,7 +99,7 @@ function GameCard({ game }: { game: Game }) {
           {joined ? (
             <Text style={{ fontSize: 11, color: colors.accent, fontWeight: '600' }}>You're in</Text>
           ) : (
-            <Text style={{ fontSize: 11, color: lowSpots ? WARNING : colors.textMuted, fontWeight: lowSpots ? '600' : '400' }}>{spotsLeft} spots left</Text>
+            <Text style={{ fontSize: 11, color: lowSpots ? colors.warning : colors.textMuted, fontWeight: lowSpots ? '600' : '400' }}>{spotsLeft} spots left</Text>
           )}
           <Difficulty level={game.difficulty} compact />
         </View>
@@ -108,22 +108,77 @@ function GameCard({ game }: { game: Game }) {
   )
 }
 
-function CuratedRow({ title, games }: { title: string; games: Game[] }) {
-  if (games.length === 0) return null
+// `origin` is only passed by the "near you" row — it's what makes each card
+// show how far away it is. `emptyLabel` keeps a row visible when it has nothing
+// to show, which only matters where the absence is itself the information
+// ("nothing near you"); the other rows just disappear.
+function CuratedRow({
+  title,
+  games,
+  origin,
+  emptyLabel,
+}: {
+  title: string
+  games: Game[]
+  origin?: Coords
+  emptyLabel?: string
+}) {
+  if (games.length === 0) {
+    if (!emptyLabel) return null
+    return (
+      <View style={{ marginBottom: 20 }}>
+        <Text style={{ fontSize: 11, color: colors.textMuted, letterSpacing: 0.8, marginBottom: 10, paddingHorizontal: 16 }}>{title}</Text>
+        <View
+          style={{
+            marginHorizontal: 16,
+            backgroundColor: colors.surface,
+            borderRadius: 14,
+            paddingVertical: 18,
+            paddingHorizontal: 14,
+            borderWidth: 0.5,
+            borderColor: colors.border,
+            flexDirection: 'row',
+            alignItems: 'center',
+            gap: 10,
+          }}
+        >
+          <Ionicons name="navigate-outline" size={16} color={colors.textMuted} />
+          <Text style={{ flex: 1, fontSize: 12, color: colors.textSecondary }}>{emptyLabel}</Text>
+          <TouchableOpacity onPress={() => router.push('/map')} hitSlop={8}>
+            <Text style={{ fontSize: 12, fontWeight: '600', color: colors.accent }}>Open map</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    )
+  }
   return (
     <View style={{ marginBottom: 20 }}>
       <Text style={{ fontSize: 11, color: colors.textMuted, letterSpacing: 0.8, marginBottom: 10, paddingHorizontal: 16 }}>{title}</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 10, paddingHorizontal: 16 }}>
-        {games.map((game) => <GameMiniCard key={game.id} game={game} />)}
+        {games.map((game) => (
+          <GameMiniCard
+            key={game.id}
+            game={game}
+            distanceKm={origin ? distanceKm(origin, game.venue) : undefined}
+          />
+        ))}
       </ScrollView>
     </View>
   )
 }
 
 function CuratedSections({ games, location }: { games: Game[]; location: Coords | null }) {
+  // Fall back to the same default getNearbyGames uses, so the distances shown
+  // are measured from the origin the list was actually filtered against.
+  const origin = location ?? DEFAULT_LOCATION
   return (
     <View style={{ paddingTop: 4 }}>
-      <CuratedRow title="NEAR YOU" games={getNearbyGames(games, location ?? undefined)} />
+      <CuratedRow
+        title="NEAR YOU"
+        games={getNearbyGames(games, origin)}
+        origin={origin}
+        emptyLabel={`No games within ${NEARBY_RADIUS_KM} km of you right now.`}
+      />
       <CuratedRow title="FEATURED THIS WEEKEND" games={getFeaturedWeekendGames(games)} />
       <CuratedRow title="FREE GAMES" games={getFreeGames(games)} />
     </View>

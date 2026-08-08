@@ -10,5 +10,7 @@ export const colors = {
   textSecondary: '#AAAAAA',
   textMuted: '#555555',
   live: '#FF3B30',
+  // Amber emphasis for "only a few spots left".
+  warning: '#FF9500',
   white: '#FFFFFF',
 }

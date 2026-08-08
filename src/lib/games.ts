@@ -1,4 +1,6 @@
 import { getRemoteGames } from './store'
+// Type-only, so this doesn't pull the hook (or expo-location) into the bundle here.
+import type { Coords } from './useUserLocation'
 import type { Game, GameFilters, TimeWindow } from '../types/game'
 
 // Query/derive helpers over the games list. Games live in Supabase and are held
@@ -175,20 +177,40 @@ export function isPastGame(game: Game, now = new Date()): boolean {
 // (permission denied, or web without a granted prompt): central Sydney.
 export const DEFAULT_LOCATION = { lat: -33.8908, lng: 151.2497 } // Bondi Junction
 
-// Cheap planar distance — good enough to rank nearby venues within a city.
-function distanceFrom(origin: { lat: number; lng: number }, game: Game): number {
-  const dLat = game.venue.lat - origin.lat
-  const dLng = game.venue.lng - origin.lng
-  return Math.sqrt(dLat * dLat + dLng * dLng)
+// How far a game can be and still count as "near you".
+export const NEARBY_RADIUS_KM = 10
+
+const EARTH_RADIUS_KM = 6371
+const DEG_TO_RAD = Math.PI / 180
+
+// Equirectangular approximation, in kilometres. A degree of longitude shrinks
+// with latitude (× cos lat) while a degree of latitude doesn't, so comparing
+// raw degrees would over-weight east–west distance by ~20% at Sydney. Accurate
+// to well under 1% over city-scale distances, and far cheaper than haversine.
+export function distanceKm(origin: Coords, point: Coords): number {
+  const meanLat = ((origin.lat + point.lat) / 2) * DEG_TO_RAD
+  const dLat = (point.lat - origin.lat) * DEG_TO_RAD
+  const dLng = (point.lng - origin.lng) * DEG_TO_RAD * Math.cos(meanLat)
+  return Math.sqrt(dLat * dLat + dLng * dLng) * EARTH_RADIUS_KM
 }
 
-// Non-past games, nearest first from `origin` (the device location when known,
-// otherwise DEFAULT_LOCATION).
-export function getNearbyGames(games: Game[], origin: { lat: number; lng: number } = DEFAULT_LOCATION, limit = 6): Game[] {
+// Human-readable distance: "450 m" up close, "2.3 km" further out.
+export function formatDistance(km: number): string {
+  return km < 1 ? `${Math.round(km * 1000)} m` : `${km.toFixed(1)} km`
+}
+
+// Upcoming games within NEARBY_RADIUS_KM of `origin` (the device location when
+// known, otherwise DEFAULT_LOCATION), nearest first. The radius is a real cut-off,
+// so this row stays empty rather than surfacing a game on the other side of the
+// country — which also naturally excludes any legacy 0,0 venues.
+export function getNearbyGames(games: Game[], origin: Coords = DEFAULT_LOCATION, limit = 6): Game[] {
   return games
     .filter((game) => !isPastGame(game))
-    .sort((a, b) => distanceFrom(origin, a) - distanceFrom(origin, b))
+    .map((game) => ({ game, km: distanceKm(origin, game.venue) }))
+    .filter(({ km }) => km <= NEARBY_RADIUS_KM)
+    .sort((a, b) => a.km - b.km)
     .slice(0, limit)
+    .map(({ game }) => game)
 }
 
 // Featured games happening on the coming weekend (falls back to all featured
